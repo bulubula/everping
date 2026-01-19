@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Metrics (latest 300)</h2>
+<table>
+  <tr><th>TS</th><th>Task</th><th>Key</th><th>Value</th></tr>
+  {% for m in metrics %}
+  <tr>
+    <td>{{ m.ts }}</td>
+    <td>{{ tasks.get(m.task_id).name if tasks.get(m.task_id) else m.task_id }}</td>
+    <td>{{ m.key }}</td>
+    <td>{{ m.value }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

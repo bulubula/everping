@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Task #{{ task.id }} - {{ task.name }}</h2>
+<p>Type: <code>{{ task.type }}</code> Enabled: <code>{{ task.enabled }}</code></p>
+<p>Command: <code>{{ task.command_template }}</code></p>
+
+<h3>Add Trigger</h3>
+<form method="post" action="/tasks/{{ task.id }}/trigger/interval">
+  <b>Interval</b> seconds:
+  <input name="interval_sec" value="10">
+  Holiday policy:
+  <select name="holiday_policy">
+    <option>NONE</option>
+    <option>CN_WORKDAY_ONLY</option>
+    <option>SKIP_CN_HOLIDAY</option>
+    <option>SKIP_CN_WORKDAY</option>
+  </select>
+  <button type="submit">Add</button>
+</form>
+
+<form method="post" action="/tasks/{{ task.id }}/trigger/cron" style="margin-top:8px;">
+  <b>Cron</b> (5 parts: min hour dom mon dow):
+  <input name="cron_expr" placeholder="*/5 * * * *" style="width:220px;">
+  Holiday policy:
+  <select name="holiday_policy">
+    <option>NONE</option>
+    <option>CN_WORKDAY_ONLY</option>
+    <option>SKIP_CN_HOLIDAY</option>
+    <option>SKIP_CN_WORKDAY</option>
+  </select>
+  <button type="submit">Add</button>
+</form>
+
+<h3>Triggers</h3>
+<table>
+  <tr><th>ID</th><th>Type</th><th>Cron</th><th>Interval</th><th>Holiday</th><th>Enabled</th></tr>
+  {% for tr in triggers %}
+  <tr>
+    <td>{{ tr.id }}</td>
+    <td>{{ tr.trigger_type }}</td>
+    <td>{{ tr.cron_expr or "" }}</td>
+    <td>{{ tr.interval_sec or "" }}</td>
+    <td>{{ tr.holiday_policy }}</td>
+    <td>{{ tr.enabled }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

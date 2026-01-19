@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row">
+  <h2 style="margin:0;">Tasks</h2>
+  <a href="/tasks/new">+ New</a>
+</div>
+<table>
+  <tr><th>ID</th><th>Name</th><th>Type</th><th>Enabled</th><th>Action</th></tr>
+  {% for t in tasks %}
+  <tr>
+    <td>{{ t.id }}</td>
+    <td><a href="/tasks/{{ t.id }}">{{ t.name }}</a></td>
+    <td>{{ t.type }}</td>
+    <td>{{ t.enabled }}</td>
+    <td>
+      <form action="/tasks/{{ t.id }}/run" method="post" style="display:inline;">
+        <button type="submit">Run now</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

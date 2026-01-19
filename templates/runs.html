@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Runs (latest 200)</h2>
+<table>
+  <tr><th>ID</th><th>Task</th><th>Status</th><th>Code</th><th>Scheduled</th><th>Started</th><th>Finished</th><th>Stdout</th></tr>
+  {% for r in runs %}
+  <tr>
+    <td>{{ r.id }}</td>
+    <td>{{ tasks.get(r.task_id).name if tasks.get(r.task_id) else r.task_id }}</td>
+    <td>{{ r.status }}</td>
+    <td>{{ r.exit_code or "" }}</td>
+    <td>{{ r.scheduled_at }}</td>
+    <td>{{ r.started_at or "" }}</td>
+    <td>{{ r.finished_at or "" }}</td>
+    <td><code>{{ r.stdout_path or "" }}</code></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

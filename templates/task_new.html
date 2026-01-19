@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>New Task</h2>
+<form method="post" action="/tasks/new">
+  <div>Name: <input name="name" required></div>
+  <div>
+    Type:
+    <select name="type">
+      <option value="schedule">schedule</option>
+      <option value="monitor">monitor</option>
+      <option value="workflow">workflow</option>
+    </select>
+  </div>
+  <div>Command (bash):</div>
+  <textarea name="command_template" rows="4" style="width:100%;" required></textarea>
+  <div>Timeout sec: <input name="timeout_sec_default" value="60"></div>
+  <div>Alert script (optional): <input name="alert_script" style="width:60%;"></div>
+  <div>Workflow def JSON (only if workflow):</div>
+  <textarea name="workflow_def" rows="8" style="width:100%;"></textarea>
+  <div>Enabled: <input name="enabled" value="1"></div>
+  <button type="submit">Create</button>
+</form>
+{% endblock %}
