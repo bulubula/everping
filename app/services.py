@@ -2,9 +2,10 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 import json
 import os
+import shlex
 from sqlalchemy.orm import Session
 from sqlalchemy import select, update
-from app.models import Task, Trigger, Run, Metric, AlertState
+from app.models import Task, Trigger, Run, Metric, AlertState, Alert
 from app.utils import now_utc, ensure_dir, parse_out_line, parse_metrics_tokens
 from app.config import settings
 from app.executor import run_command_killpg
@@ -36,11 +37,15 @@ def holiday_allowed(policy: str) -> bool:
         # 没装库/异常：默认放行
         return True
 
-def acquire_task_mutex(db: Session, task_id: int) -> bool:
+def acquire_task_mutex(db: Session, task_id: int, run_id: int) -> bool:
     """
     父任务不可重入：如果该 task_id 已存在 RUNNING，则获取失败
     """
-    q = select(Run.id).where(Run.task_id == task_id, Run.status == "RUNNING").limit(1)
+    q = (
+        select(Run.id)
+        .where(Run.task_id == task_id, Run.status == "RUNNING", Run.id != run_id)
+        .limit(1)
+    )
     exists = db.execute(q).scalar_one_or_none()
     return exists is None
 
@@ -63,8 +68,9 @@ def maybe_send_alert(db: Session, task: Task, alert_type: str, message: str) -> 
         select(AlertState).where(AlertState.task_id == task.id, AlertState.alert_type == alert_type)
     ).scalar_one_or_none()
 
+    suppressed = False
     if st and st.last_sent_at and (now - st.last_sent_at).total_seconds() < settings.ALERT_SUPPRESS_SEC:
-        return False
+        suppressed = True
 
     if not st:
         st = AlertState(task_id=task.id, alert_type=alert_type, last_sent_at=now)
@@ -72,17 +78,33 @@ def maybe_send_alert(db: Session, task: Task, alert_type: str, message: str) -> 
     else:
         st.last_sent_at = now
 
+    db.add(Alert(task_id=task.id, alert_type=alert_type, message=message, suppressed=1 if suppressed else 0))
     db.commit()
+
+    if suppressed:
+        return False
 
     # 触发你自己的通知脚本（可选）
     if task.alert_script:
         # 不要阻塞：简单用 shell 后台执行
-        os.system(f"nohup {task.alert_script} '{message.replace(\"'\", \"\\\"\")}' >/dev/null 2>&1 &")
+        safe_message = shlex.quote(message)
+        os.system(f"nohup {task.alert_script} {safe_message} >/dev/null 2>&1 &")
     return True
 
 def execute_one_run(db: Session, run_id: int) -> None:
+    now = now_utc()
+    claim = (
+        update(Run)
+        .where(Run.id == run_id, Run.status == "PENDING")
+        .values(status="RUNNING", started_at=now)
+    )
+    result = db.execute(claim)
+    if result.rowcount == 0:
+        db.commit()
+        return
+    db.commit()
     run = db.get(Run, run_id)
-    if not run or run.status != "PENDING":
+    if not run:
         return
 
     task = db.get(Task, run.task_id)
@@ -93,19 +115,14 @@ def execute_one_run(db: Session, run_id: int) -> None:
         return
 
     # 互斥：父任务不可重入
-    if not acquire_task_mutex(db, task.id):
+    if not acquire_task_mutex(db, task.id, run.id):
         run.status = "FAILED"
-        run.started_at = now_utc()
         run.finished_at = now_utc()
         run.exit_code = 99
         run.error_message = "Task is already RUNNING (non-reentrant)."
         db.commit()
         maybe_send_alert(db, task, "reentry", f"{task.name}: reentry blocked")
         return
-
-    run.status = "RUNNING"
-    run.started_at = now_utc()
-    db.commit()
 
     try:
         if task.type == "workflow":
@@ -168,10 +185,26 @@ def _execute_workflow(db: Session, run: Run, task: Task) -> None:
     cur = wf.get("entry", 0)
     args: list[str] = []
 
+    step_index = 0
     while cur and cur in steps:
         s = steps[cur]
+        step_index += 1
         step_cmd = s.get("cmd", "")
         step_timeout = int(s.get("timeout", task.timeout_sec_default))
+
+        step_run = Run(
+            task_id=task.id,
+            trigger_id=run.trigger_id,
+            parent_run_id=run.id,
+            step_index=step_index,
+            step_id=int(s.get("id", step_index)),
+            status="RUNNING",
+            scheduled_at=now_utc(),
+            started_at=now_utc(),
+        )
+        db.add(step_run)
+        db.commit()
+        db.refresh(step_run)
 
         # step 也复用同一个 run 的日志文件（简单起见）；也可扩展为子 run
         step_task = Task(
@@ -185,7 +218,7 @@ def _execute_workflow(db: Session, run: Run, task: Task) -> None:
             alert_script=task.alert_script,
         )
 
-        code, out_tokens, _, _, timed_out = _execute_single(db, run, step_task, args)
+        code, out_tokens, _, _, timed_out = _execute_single(db, step_run, step_task, args)
         ok = (code == 0) and (not timed_out)
 
         # OUT 作为下一步参数
@@ -193,6 +226,12 @@ def _execute_workflow(db: Session, run: Run, task: Task) -> None:
             args = out_tokens
 
         cur = int(s.get("on_success", 0) if ok else s.get("on_fail", 0))
+        if not ok and cur == 0:
+            run.status = "TIMEOUT" if timed_out else "FAILED"
+            run.exit_code = code
+            run.finished_at = now_utc()
+            db.commit()
+            return
 
     # workflow 最终状态以 run 当前状态为准：如果最后一步成功则 SUCCESS，否则 FAILED/TIMEOUT
     # 若 workflow 没有 step 或没跑起来：

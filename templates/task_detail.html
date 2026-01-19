@@ -43,15 +43,34 @@
   <button type="submit">Run once</button>
 </form>
 
+<form method="post" action="/tasks/{{ task.id }}/trigger/deadline" style="margin-top:8px;">
+  <b>Deadline</b>
+  deadline_at (YYYY-MM-DDTHH:MM:SS):
+  <input name="deadline_at" placeholder="2025-01-31T23:59:59" style="width:200px;">
+  start_before_days:
+  <input name="start_before_days" value="1" style="width:60px;">
+  interval_hours:
+  <input name="interval_hours" value="6" style="width:60px;">
+  Holiday policy:
+  <select name="holiday_policy">
+    <option>NONE</option>
+    <option>CN_WORKDAY_ONLY</option>
+    <option>SKIP_CN_HOLIDAY</option>
+    <option>SKIP_CN_WORKDAY</option>
+  </select>
+  <button type="submit">Add</button>
+</form>
+
 <h3>Triggers</h3>
 <table>
-  <tr><th>ID</th><th>Type</th><th>Cron</th><th>Interval</th><th>Holiday</th><th>Enabled</th></tr>
+  <tr><th>ID</th><th>Type</th><th>Cron</th><th>Interval</th><th>Deadline</th><th>Holiday</th><th>Enabled</th></tr>
   {% for tr in triggers %}
   <tr>
     <td>{{ tr.id }}</td>
     <td>{{ tr.trigger_type }}</td>
     <td>{{ tr.cron_expr or "" }}</td>
     <td>{{ tr.interval_sec or "" }}</td>
+    <td>{{ tr.deadline_config or "" }}</td>
     <td>{{ tr.holiday_policy }}</td>
     <td>{{ tr.enabled }}</td>
   </tr>

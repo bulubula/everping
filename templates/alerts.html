@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Alerts (latest 200)</h2>
+<table>
+  <tr><th>TS</th><th>Task</th><th>Type</th><th>Message</th><th>Suppressed</th></tr>
+  {% for a in alerts %}
+  <tr>
+    <td>{{ a.ts }}</td>
+    <td>{{ tasks.get(a.task_id).name if tasks.get(a.task_id) else a.task_id }}</td>
+    <td>{{ a.alert_type }}</td>
+    <td>{{ a.message }}</td>
+    <td>{{ "yes" if a.suppressed else "no" }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}
