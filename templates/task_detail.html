@@ -31,6 +31,18 @@
   <button type="submit">Add</button>
 </form>
 
+<form method="post" action="/tasks/{{ task.id }}/trigger/once" style="margin-top:8px;">
+  <b>Once</b>
+  Holiday policy:
+  <select name="holiday_policy">
+    <option>NONE</option>
+    <option>CN_WORKDAY_ONLY</option>
+    <option>SKIP_CN_HOLIDAY</option>
+    <option>SKIP_CN_WORKDAY</option>
+  </select>
+  <button type="submit">Run once</button>
+</form>
+
 <h3>Triggers</h3>
 <table>
   <tr><th>ID</th><th>Type</th><th>Cron</th><th>Interval</th><th>Holiday</th><th>Enabled</th></tr>

@@ -152,6 +152,22 @@ def add_cron_trigger(
     scheduler._reload_jobs()
     return RedirectResponse(f"/tasks/{task_id}", status_code=303)
 
+@app.post("/tasks/{task_id}/trigger/once")
+def add_once_trigger(
+    request: Request,
+    task_id: int,
+    holiday_policy: str = Form("NONE"),
+    db: Session = Depends(get_db),
+):
+    redir = _guard(request)
+    if redir:
+        return redir
+    tr = Trigger(task_id=task_id, trigger_type="once", holiday_policy=holiday_policy, enabled=1)
+    db.add(tr)
+    db.commit()
+    scheduler._reload_jobs()
+    return RedirectResponse(f"/tasks/{task_id}", status_code=303)
+
 @app.post("/tasks/{task_id}/run")
 def run_now(request: Request, task_id: int, db: Session = Depends(get_db)):
     redir = _guard(request)

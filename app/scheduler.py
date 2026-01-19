@@ -32,6 +32,9 @@ class AppScheduler:
             triggers = db.execute(select(Trigger).where(Trigger.enabled == 1)).scalars().all()
 
         for t in triggers:
+            if t.trigger_type == "once":
+                self._fire_once(t.id)
+                continue
             if t.trigger_type == "cron" and t.cron_expr:
                 # 5段 cron：min hour dom mon dow
                 parts = t.cron_expr.strip().split()
@@ -53,6 +56,24 @@ class AppScheduler:
                 interval_sec = int(cfg.get("interval_sec", 3600))
                 trig = IntervalTrigger(seconds=interval_sec)
                 self.sched.add_job(self._fire, trig, args=[t.id], id=f"trigger_{t.id}", replace_existing=True)
+
+    def _fire_once(self, trigger_id: int) -> None:
+        with SessionLocal() as db:
+            t = db.get(Trigger, trigger_id)
+            if not t or t.enabled != 1:
+                return
+            task = t.task
+            if not task or task.enabled != 1:
+                t.enabled = 0
+                db.commit()
+                return
+            if not holiday_allowed(t.holiday_policy):
+                t.enabled = 0
+                db.commit()
+                return
+            enqueue_run(db, task.id, t.id)
+            t.enabled = 0
+            db.commit()
 
     def _fire(self, trigger_id: int) -> None:
         with SessionLocal() as db:
