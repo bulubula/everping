@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>Metrics (latest 300)</h2>
+<canvas id="metricsChart" height="120"></canvas>
 <table>
   <tr><th>TS</th><th>Task</th><th>Key</th><th>Value</th></tr>
   {% for m in metrics %}
@@ -12,4 +13,35 @@
   </tr>
   {% endfor %}
 </table>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  const rows = {{ chart_rows | safe }};
+  const labels = rows.map(r => r.ts);
+  const seriesNames = Array.from(new Set(rows.map(r => `${r.task_name}:${r.key}`)));
+  const datasets = seriesNames.map(name => ({
+    label: name,
+    data: new Array(rows.length).fill(null)
+  }));
+  const seriesIndex = new Map(seriesNames.map((name, idx) => [name, idx]));
+  rows.forEach((r, idx) => {
+    const key = `${r.task_name}:${r.key}`;
+    const target = seriesIndex.get(key);
+    if (target !== undefined) {
+      datasets[target].data[idx] = r.value;
+    }
+  });
+  const ctx = document.getElementById('metricsChart');
+  new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { display: true, title: { display: true, text: 'timestamp' } },
+        y: { display: true, title: { display: true, text: 'value' } }
+      }
+    }
+  });
+</script>
 {% endblock %}

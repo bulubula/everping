@@ -37,6 +37,9 @@ class Run(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
     trigger_id: Mapped[int | None] = mapped_column(ForeignKey("triggers.id", ondelete="SET NULL"), nullable=True)
+    parent_run_id: Mapped[int | None] = mapped_column(ForeignKey("runs.id", ondelete="SET NULL"), nullable=True)
+    step_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    step_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(20), index=True)  # PENDING RUNNING SUCCESS FAILED TIMEOUT SKIPPED
     scheduled_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -61,3 +64,12 @@ class AlertState(Base):
     task_id: Mapped[int] = mapped_column(Integer, index=True)
     alert_type: Mapped[str] = mapped_column(String(80))
     last_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+class Alert(Base):
+    __tablename__ = "alerts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    task_id: Mapped[int] = mapped_column(Integer, index=True)
+    alert_type: Mapped[str] = mapped_column(String(80))
+    ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    message: Mapped[str] = mapped_column(Text)
+    suppressed: Mapped[int] = mapped_column(Integer, default=0)

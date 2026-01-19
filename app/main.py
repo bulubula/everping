@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.db import Base, engine, get_db
-from app.models import Task, Trigger, Run, Metric
+from app.models import Task, Trigger, Run, Metric, Alert
 from app.auth import verify_login, require_login, login, logout
 from app.scheduler import AppScheduler
 from app.worker import WorkerPool
@@ -19,7 +19,7 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=settings.APP_SECRET)
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory="templates")
 
 scheduler = AppScheduler()
 workers = WorkerPool()
@@ -193,4 +193,64 @@ def metrics(request: Request, db: Session = Depends(get_db)):
     # 最简单：最近 300 条
     items = db.execute(select(Metric).order_by(Metric.id.desc()).limit(300)).scalars().all()
     tasks = {t.id: t for t in db.execute(select(Task)).scalars().all()}
-    return templates.TemplateResponse("metrics.html", {"request": request, "metrics": items, "tasks": tasks})
+    chart_rows = [
+        {
+            "ts": m.ts.isoformat(),
+            "task_id": m.task_id,
+            "task_name": tasks.get(m.task_id).name if tasks.get(m.task_id) else str(m.task_id),
+            "key": m.key,
+            "value": m.value,
+        }
+        for m in reversed(items)
+    ]
+    return templates.TemplateResponse(
+        "metrics.html",
+        {
+            "request": request,
+            "metrics": items,
+            "tasks": tasks,
+            "chart_rows": json.dumps(chart_rows, ensure_ascii=False),
+        },
+    )
+
+@app.get("/alerts", response_class=HTMLResponse)
+def alerts(request: Request, db: Session = Depends(get_db)):
+    redir = _guard(request)
+    if redir:
+        return redir
+    items = db.execute(select(Alert).order_by(Alert.id.desc()).limit(200)).scalars().all()
+    tasks = {t.id: t for t in db.execute(select(Task)).scalars().all()}
+    return templates.TemplateResponse("alerts.html", {"request": request, "alerts": items, "tasks": tasks})
+
+@app.post("/tasks/{task_id}/trigger/deadline")
+def add_deadline_trigger(
+    request: Request,
+    task_id: int,
+    deadline_at: str = Form(...),
+    start_before_days: int = Form(1),
+    interval_hours: int = Form(6),
+    holiday_policy: str = Form("NONE"),
+    db: Session = Depends(get_db),
+):
+    redir = _guard(request)
+    if redir:
+        return redir
+    cfg = json.dumps(
+        {
+            "deadline_at": deadline_at.strip(),
+            "start_before_days": int(start_before_days),
+            "interval_hours": int(interval_hours),
+        },
+        ensure_ascii=False,
+    )
+    tr = Trigger(
+        task_id=task_id,
+        trigger_type="deadline",
+        deadline_config=cfg,
+        holiday_policy=holiday_policy,
+        enabled=1,
+    )
+    db.add(tr)
+    db.commit()
+    scheduler._reload_jobs()
+    return RedirectResponse(f"/tasks/{task_id}", status_code=303)
