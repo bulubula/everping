@@ -1,8 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Runs (latest 200)</h2>
-<table>
-  <tr><th>ID</th><th>Task</th><th>Status</th><th>Code</th><th>Scheduled</th><th>Started</th><th>Finished</th><th>Stdout</th></tr>
+<div class="card mb-3">
+  <div class="d-flex justify-content-between align-items-center">
+    <h2 style="margin:0;">Runs (latest 200)</h2>
+    <form action="{{ request.url_for('runs_clear') }}" method="post">
+      <button type="submit" class="btn btn-danger" onclick="return confirm('Clear all runs?')">Clear</button>
+    </form>
+  </div>
+</div>
+<div class="table-responsive">
+<table class="table table-striped align-middle">
+  <thead>
+    <tr><th>ID</th><th>Task</th><th>Status</th><th>Code</th><th>Scheduled</th><th>Started</th><th>Finished</th><th>Stdout</th></tr>
+  </thead>
+  <tbody>
   {% for r in runs %}
   <tr>
     <td>{{ r.id }}</td>
@@ -12,8 +23,10 @@
     <td>{{ r.scheduled_at }}</td>
     <td>{{ r.started_at or "" }}</td>
     <td>{{ r.finished_at or "" }}</td>
-    <td><code>{{ r.stdout_path or "" }}</code></td>
+    <td><span class="code">{{ r.stdout_path or "" }}</span></td>
   </tr>
   {% endfor %}
+  </tbody>
 </table>
+</div>
 {% endblock %}

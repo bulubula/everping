@@ -1,0 +1,20 @@
+[
+  {
+    "id": "wx_push_test",
+    "label": "微信推送测试",
+    "cmd": ["/root/sh/push.sh", "-a", "[label]", "-b", "[style]"],
+    "style": "secondary"
+  },
+  {
+    "id": "app_push_test",
+    "label": "app推送测试",
+    "cmd": ["python3", "/root/sh/push.py", "-a", "[label]", "-b", "[style]"],
+    "style": "secondary"
+  },
+  {
+    "id": "router_reboot",
+    "label": "重启路由器",
+    "cmd": ["/root/sh/task/RouterReboot.sh", "-a", "[label]", "-b", "[style]"],
+    "style": "warning"
+  }
+]

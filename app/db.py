@@ -18,6 +18,26 @@ engine = create_engine(
     pool_pre_ping=True,
 )
 
+def _ensure_sqlite_columns() -> None:
+    if not settings.DB_URL.startswith("sqlite"):
+        return
+    try:
+        with engine.connect() as conn:
+            res = conn.execute(text("PRAGMA table_info(tasks);")).fetchall()
+            if not res:
+                return
+            cols = {row[1] for row in res}
+            if "job_id" not in cols:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN job_id VARCHAR(100);"))
+                conn.commit()
+            if "remark" not in cols:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN remark TEXT;"))
+                conn.commit()
+    except Exception:
+        pass
+
+_ensure_sqlite_columns()
+
 @event.listens_for(engine, "connect")
 def _sqlite_pragmas(dbapi_conn, _):
     # WAL + 合理同步级别：更适合轻量并发写

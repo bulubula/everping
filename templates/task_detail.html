@@ -1,79 +1,116 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Task #{{ task.id }} - {{ task.name }}</h2>
-<p>Type: <code>{{ task.type }}</code> Enabled: <code>{{ task.enabled }}</code></p>
-<p>Command: <code>{{ task.command_template }}</code></p>
-
-<h3>Add Trigger</h3>
-<form method="post" action="/tasks/{{ task.id }}/trigger/interval">
-  <b>Interval</b> seconds:
-  <input name="interval_sec" value="10">
-  Holiday policy:
-  <select name="holiday_policy">
-    <option>NONE</option>
-    <option>CN_WORKDAY_ONLY</option>
-    <option>SKIP_CN_HOLIDAY</option>
-    <option>SKIP_CN_WORKDAY</option>
-  </select>
-  <button type="submit">Add</button>
-</form>
-
-<form method="post" action="/tasks/{{ task.id }}/trigger/cron" style="margin-top:8px;">
-  <b>Cron</b> (5 parts: min hour dom mon dow):
-  <input name="cron_expr" placeholder="*/5 * * * *" style="width:220px;">
-  Holiday policy:
-  <select name="holiday_policy">
-    <option>NONE</option>
-    <option>CN_WORKDAY_ONLY</option>
-    <option>SKIP_CN_HOLIDAY</option>
-    <option>SKIP_CN_WORKDAY</option>
-  </select>
-  <button type="submit">Add</button>
-</form>
-
-<form method="post" action="/tasks/{{ task.id }}/trigger/once" style="margin-top:8px;">
-  <b>Once</b>
-  Holiday policy:
-  <select name="holiday_policy">
-    <option>NONE</option>
-    <option>CN_WORKDAY_ONLY</option>
-    <option>SKIP_CN_HOLIDAY</option>
-    <option>SKIP_CN_WORKDAY</option>
-  </select>
-  <button type="submit">Run once</button>
-</form>
-
-<form method="post" action="/tasks/{{ task.id }}/trigger/deadline" style="margin-top:8px;">
-  <b>Deadline</b>
-  deadline_at (YYYY-MM-DDTHH:MM:SS):
-  <input name="deadline_at" placeholder="2025-01-31T23:59:59" style="width:200px;">
-  start_before_days:
-  <input name="start_before_days" value="1" style="width:60px;">
-  interval_hours:
-  <input name="interval_hours" value="6" style="width:60px;">
-  Holiday policy:
-  <select name="holiday_policy">
-    <option>NONE</option>
-    <option>CN_WORKDAY_ONLY</option>
-    <option>SKIP_CN_HOLIDAY</option>
-    <option>SKIP_CN_WORKDAY</option>
-  </select>
-  <button type="submit">Add</button>
-</form>
+<div class="card mb-3">
+  <h2 class="mb-3">Task #{{ task.id }} - {{ task.name }}</h2>
+  {% if error %}
+  <div class="text-danger mb-2">{{ error }}</div>
+  {% endif %}
+  <form method="post" action="/tasks/{{ task.id }}/edit" class="d-flex" style="flex-direction:column; gap:0.75rem;">
+    <div>Name: <span class="code">{{ task.name }}</span></div>
+    <div>
+      <label>Type</label>
+      <select name="type">
+        <option value="schedule" {% if task.type == 'schedule' %}selected{% endif %}>schedule</option>
+        <option value="monitor" {% if task.type == 'monitor' %}selected{% endif %}>monitor</option>
+      </select>
+    </div>
+    <div>
+      <label>Job</label>
+      <select name="job_id">
+        <option value="">-- select job --</option>
+        {% for j in jobs %}
+          <option value="{{ j.id }}" {% if task.job_id == j.id %}selected{% endif %}>{{ j.id }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Enabled</label>
+      <select name="enabled">
+        <option value="1" {% if task.enabled == 1 %}selected{% endif %}>1</option>
+        <option value="0" {% if task.enabled == 0 %}selected{% endif %}>0</option>
+      </select>
+    </div>
+    <div>
+      <label>Remark</label>
+      <textarea class="form-control" name="remark" rows="3" placeholder="Notes...">{{ task.remark or "" }}</textarea>
+    </div>
+    <div>
+      <button class="btn" type="submit">Save</button>
+    </div>
+  </form>
+</div>
 
 <h3>Triggers</h3>
-<table>
-  <tr><th>ID</th><th>Type</th><th>Cron</th><th>Interval</th><th>Deadline</th><th>Holiday</th><th>Enabled</th></tr>
+<form method="post" action="/tasks/{{ task.id }}/trigger/add" class="card mb-3">
+  <div class="d-flex gap-2 align-items-center" style="flex-wrap:wrap;">
+  <b>Add Trigger</b>
+  <select name="trigger_type">
+    <option value="interval">interval</option>
+    <option value="cron">cron</option>
+    <option value="deadline">deadline</option>
+  </select>
+  <input class="form-control" name="interval_sec" placeholder="interval_sec" style="width:120px;">
+  <input class="form-control" name="cron_expr" placeholder="*/5 * * * *" style="width:160px;">
+  <input class="form-control" name="deadline_at" placeholder="YYYY-MM-DDTHH:MM:SS" style="width:220px;">
+  <input class="form-control" name="start_before_days" placeholder="start_before_days" style="width:150px;">
+  <input class="form-control" name="interval_hours" placeholder="interval_hours" style="width:140px;">
+  <select name="holiday_policy">
+    <option>NONE</option>
+    <option>CN_WORKDAY_ONLY</option>
+    <option>SKIP_CN_HOLIDAY</option>
+    <option>SKIP_CN_WORKDAY</option>
+  </select>
+  <button type="submit" class="btn">Add</button>
+  </div>
+</form>
+<div class="table-responsive">
+<table class="table table-striped align-middle">
+  <thead>
+    <tr><th>ID</th><th>Type</th><th>Cron</th><th>Interval</th><th>Deadline</th><th>Holiday</th><th>Enabled</th><th>Action</th></tr>
+  </thead>
+  <tbody>
   {% for tr in triggers %}
   <tr>
-    <td>{{ tr.id }}</td>
-    <td>{{ tr.trigger_type }}</td>
-    <td>{{ tr.cron_expr or "" }}</td>
-    <td>{{ tr.interval_sec or "" }}</td>
-    <td>{{ tr.deadline_config or "" }}</td>
-    <td>{{ tr.holiday_policy }}</td>
-    <td>{{ tr.enabled }}</td>
+      <td>
+        {{ tr.id }}
+        <form id="form_tr_{{ tr.id }}" method="post" action="/triggers/{{ tr.id }}/edit"></form>
+        <input type="hidden" name="task_id" value="{{ task.id }}" form="form_tr_{{ tr.id }}">
+      </td>
+      <td>
+        <select name="trigger_type" form="form_tr_{{ tr.id }}">
+          <option value="interval" {% if tr.trigger_type == 'interval' %}selected{% endif %}>interval</option>
+          <option value="cron" {% if tr.trigger_type == 'cron' %}selected{% endif %}>cron</option>
+          <option value="deadline" {% if tr.trigger_type == 'deadline' %}selected{% endif %}>deadline</option>
+        </select>
+      </td>
+      <td><input class="form-control" name="cron_expr" value="{{ tr.cron_expr or '' }}" style="width:140px;" form="form_tr_{{ tr.id }}"></td>
+      <td><input class="form-control" type="number" name="interval_sec" value="{{ tr.interval_sec or '' }}" style="width:80px;" form="form_tr_{{ tr.id }}"></td>
+      <td>
+        <input class="form-control" name="deadline_at" value="{{ trig_cfg[tr.id].deadline_at }}" style="width:200px;" form="form_tr_{{ tr.id }}">
+        <input class="form-control" type="number" name="start_before_days" value="{{ trig_cfg[tr.id].start_before_days }}" placeholder="start_before_days" style="width:120px;" form="form_tr_{{ tr.id }}">
+        <input class="form-control" type="number" name="interval_hours" value="{{ trig_cfg[tr.id].interval_hours }}" placeholder="interval_hours" style="width:120px;" form="form_tr_{{ tr.id }}">
+      </td>
+      <td>
+        <select name="holiday_policy" form="form_tr_{{ tr.id }}">
+          <option {% if tr.holiday_policy == 'NONE' %}selected{% endif %}>NONE</option>
+          <option {% if tr.holiday_policy == 'CN_WORKDAY_ONLY' %}selected{% endif %}>CN_WORKDAY_ONLY</option>
+          <option {% if tr.holiday_policy == 'SKIP_CN_HOLIDAY' %}selected{% endif %}>SKIP_CN_HOLIDAY</option>
+          <option {% if tr.holiday_policy == 'SKIP_CN_WORKDAY' %}selected{% endif %}>SKIP_CN_WORKDAY</option>
+        </select>
+      </td>
+      <td>
+        <select name="enabled" form="form_tr_{{ tr.id }}">
+          <option value="1" {% if tr.enabled == 1 %}selected{% endif %}>1</option>
+          <option value="0" {% if tr.enabled == 0 %}selected{% endif %}>0</option>
+        </select>
+      </td>
+      <td>
+        <button type="submit" class="btn" form="form_tr_{{ tr.id }}">Save</button>
+        <button type="submit" class="btn btn-danger" formaction="/triggers/{{ tr.id }}/delete" onclick="return confirm('Delete trigger?')" form="form_tr_{{ tr.id }}">Delete</button>
+      </td>
   </tr>
   {% endfor %}
+  </tbody>
 </table>
+</div>
 {% endblock %}

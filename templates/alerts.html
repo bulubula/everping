@@ -1,8 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Alerts (latest 200)</h2>
-<table>
-  <tr><th>TS</th><th>Task</th><th>Type</th><th>Message</th><th>Suppressed</th></tr>
+<div class="card mb-3">
+  <div class="d-flex justify-content-between align-items-center">
+    <h2 style="margin:0;">Alerts (latest 200)</h2>
+    <form action="{{ request.url_for('alerts_clear') }}" method="post">
+      <button type="submit" class="btn btn-danger" onclick="return confirm('Clear all alerts?')">Clear</button>
+    </form>
+  </div>
+</div>
+<div class="table-responsive">
+<table class="table table-striped align-middle">
+  <thead>
+    <tr><th>TS</th><th>Task</th><th>Type</th><th>Message</th><th>Suppressed</th></tr>
+  </thead>
+  <tbody>
   {% for a in alerts %}
   <tr>
     <td>{{ a.ts }}</td>
@@ -12,5 +23,7 @@
     <td>{{ "yes" if a.suppressed else "no" }}</td>
   </tr>
   {% endfor %}
+  </tbody>
 </table>
+</div>
 {% endblock %}

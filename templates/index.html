@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>tiny-scheduler</h2>
-<p>轻量调度 + 简单编排 + 秒级监控</p>
-<p>去 <a href="/tasks">Tasks</a> 看示例任务，或 <a href="/runs">Runs</a> 看执行记录。</p>
+<div class="card">
+  <h2>everping</h2>
+  <p>Lightweight scheduler and monitor with a simple web UI.</p>
+  <p>Go to <a href="{{ request.url_for('tasks') }}">Tasks</a> to manage jobs, or <a href="{{ request.url_for('runs') }}">Runs</a> to view history.</p>
+</div>
 {% endblock %}

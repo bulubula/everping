@@ -1,47 +1,21 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Metrics (latest 300)</h2>
-<canvas id="metricsChart" height="120"></canvas>
-<table>
-  <tr><th>TS</th><th>Task</th><th>Key</th><th>Value</th></tr>
-  {% for m in metrics %}
-  <tr>
-    <td>{{ m.ts }}</td>
-    <td>{{ tasks.get(m.task_id).name if tasks.get(m.task_id) else m.task_id }}</td>
-    <td>{{ m.key }}</td>
-    <td>{{ m.value }}</td>
-  </tr>
-  {% endfor %}
-</table>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<div class="card mb-3">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="d-flex gap-2 flex-wrap">
+      <button class="btn btn-primary btn-sm" type="button" data-range="latest">latest 300</button>
+      <button class="btn btn-outline-secondary btn-sm" type="button" data-range="today">today</button>
+      <button class="btn btn-outline-secondary btn-sm" type="button" data-range="week">this week</button>
+      <button class="btn btn-outline-secondary btn-sm" type="button" data-range="month">this month</button>
+    </div>
+    <form action="{{ request.url_for('metrics_clear') }}" method="post">
+      <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Clear all metrics?')">Clear</button>
+    </form>
+  </div>
+</div>
+<div id="metricsCharts" class="row g-3"></div>
 <script>
-  const rows = {{ chart_rows | safe }};
-  const labels = rows.map(r => r.ts);
-  const seriesNames = Array.from(new Set(rows.map(r => `${r.task_name}:${r.key}`)));
-  const datasets = seriesNames.map(name => ({
-    label: name,
-    data: new Array(rows.length).fill(null)
-  }));
-  const seriesIndex = new Map(seriesNames.map((name, idx) => [name, idx]));
-  rows.forEach((r, idx) => {
-    const key = `${r.task_name}:${r.key}`;
-    const target = seriesIndex.get(key);
-    if (target !== undefined) {
-      datasets[target].data[idx] = r.value;
-    }
-  });
-  const ctx = document.getElementById('metricsChart');
-  new Chart(ctx, {
-    type: 'line',
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      interaction: { mode: 'index', intersect: false },
-      scales: {
-        x: { display: true, title: { display: true, text: 'timestamp' } },
-        y: { display: true, title: { display: true, text: 'value' } }
-      }
-    }
-  });
+  window.__metricsRows = {{ chart_rows | safe }};
 </script>
+<script src="{{ request.url_for('static', path='metrics.js') }}"></script>
 {% endblock %}

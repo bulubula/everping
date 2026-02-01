@@ -2,28 +2,34 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>tiny-scheduler</title>
-  <style>
-    body { font-family: sans-serif; margin: 24px; }
-    a { margin-right: 10px; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ddd; padding: 8px; }
-    .row { display:flex; gap:12px; align-items:center; }
-    code { background:#f5f5f5; padding:2px 6px; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>everping</title>
+  <link rel="stylesheet" href="{{ request.url_for('static', path='bootstrap.min.css') }}">
 </head>
 <body>
-  <div class="row">
-    <a href="/">Home</a>
-    <a href="/tasks">Tasks</a>
-    <a href="/runs">Runs</a>
-    <a href="/metrics">Metrics</a>
-    <a href="/alerts">Alerts</a>
-    <form action="/logout" method="post" style="margin-left:auto;">
-      <button type="submit">Logout</button>
-    </form>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="{{ request.url_for('index') }}">everping</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMain" aria-controls="navMain" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMain">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link" href="{{ request.url_for('index') }}">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ request.url_for('tasks') }}">Tasks</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ request.url_for('runs') }}">Runs</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ request.url_for('metrics') }}">Metrics</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ request.url_for('alerts') }}">Alerts</a></li>
+        </ul>
+        <form action="{{ request.url_for('do_logout') }}" method="post" class="d-flex">
+          <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
+        </form>
+      </div>
+    </div>
+  </nav>
+  <div class="container-fluid mt-3">
+    {% block content %}{% endblock %}
   </div>
-  <hr>
-  {% block content %}{% endblock %}
+  <script src="{{ request.url_for('static', path='bootstrap.bundle.min.js') }}"></script>
 </body>
 </html>

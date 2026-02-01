@@ -12,8 +12,9 @@ class Task(Base):
     command_template: Mapped[str] = mapped_column(Text)  # bash command template
     enabled: Mapped[int] = mapped_column(Integer, default=1)
     timeout_sec_default: Mapped[int] = mapped_column(Integer, default=60)
-    workflow_def: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON text (only for workflow)
+    job_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     alert_script: Mapped[str | None] = mapped_column(Text, nullable=True)  # optional bash cmd
+    remark: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -23,7 +24,7 @@ class Trigger(Base):
     __tablename__ = "triggers"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
-    trigger_type: Mapped[str] = mapped_column(String(20))  # cron | interval | deadline | once
+    trigger_type: Mapped[str] = mapped_column(String(20))  # cron | interval | deadline
     cron_expr: Mapped[str | None] = mapped_column(String(120), nullable=True)  # "*/5 * * * *"
     interval_sec: Mapped[int | None] = mapped_column(Integer, nullable=True)
     deadline_config: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON text
