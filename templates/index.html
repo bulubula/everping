@@ -1,8 +1,60 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card">
-  <h2>everping</h2>
-  <p>Lightweight scheduler and monitor with a simple web UI.</p>
-  <p>Go to <a href="{{ request.url_for('tasks') }}">Tasks</a> to manage jobs, or <a href="{{ request.url_for('runs') }}">Runs</a> to view history.</p>
+<div class="card mb-3">
+  <div class="card-header">
+    <h4 class="mb-0">Server Overview</h4>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-bordered mb-0">
+      <tbody>
+        <tr>
+          <th style="width: 180px;">Client IP</th>
+          <td>{{ sysinfo.client_ip }}</td>
+        </tr>
+        <tr>
+          <th>Server Time</th>
+          <td>{{ sysinfo.server_time }}</td>
+        </tr>
+        <tr>
+          <th>Uptime</th>
+          <td>{{ sysinfo.uptime }}</td>
+        </tr>
+        <tr>
+          <th>CPU Model</th>
+          <td>{{ sysinfo.cpu_model }}</td>
+        </tr>
+        <tr>
+          <th>Disk Usage</th>
+          <td>
+            {% for disk in sysinfo.disks %}
+            <div class="mb-3">
+              <div class="mb-1"><strong>{{ disk.path }}</strong></div>
+              {% if disk.available %}
+              <div>Total: {{ disk.total }}, Used: {{ disk.used }}, Free: {{ disk.free }}, Usage: {{ disk.percent }}</div>
+              <div class="progress mt-2" role="progressbar" aria-label="disk usage {{ disk.path }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ disk.percent_float }}">
+                <div class="progress-bar bg-success" style="width: {{ disk.percent_float }}%;">{{ disk.percent }}</div>
+              </div>
+              {% else %}
+              <span class="text-muted">Not mounted or inaccessible</span>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </td>
+        </tr>
+        <tr>
+          <th>System Load</th>
+          <td>{{ sysinfo.loadavg }}</td>
+        </tr>
+        <tr>
+          <th>NIC Traffic</th>
+          <td>
+            {% for nic in sysinfo.nics %}
+            <div class="mb-1"><strong>{{ nic.name }}</strong> RX: {{ nic.rx }} | TX: {{ nic.tx }}</div>
+            {% endfor %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endblock %}

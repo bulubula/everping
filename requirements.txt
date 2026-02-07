@@ -8,3 +8,4 @@ passlib[bcrypt]==1.7.4
 python-multipart==0.0.20
 chinese-calendar==1.9.2
 itsdangerous==2.2.0
+psutil==6.1.1

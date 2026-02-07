@@ -1,116 +1,183 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="card mb-3">
-  <h2 class="mb-3">Task #{{ task.id }} - {{ task.name }}</h2>
-  {% if error %}
-  <div class="text-danger mb-2">{{ error }}</div>
-  {% endif %}
-  <form method="post" action="/tasks/{{ task.id }}/edit" class="d-flex" style="flex-direction:column; gap:0.75rem;">
-    <div>Name: <span class="code">{{ task.name }}</span></div>
-    <div>
-      <label>Type</label>
-      <select name="type">
-        <option value="schedule" {% if task.type == 'schedule' %}selected{% endif %}>schedule</option>
-        <option value="monitor" {% if task.type == 'monitor' %}selected{% endif %}>monitor</option>
-      </select>
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+      <div>
+        <h2 class="mb-1">Task #{{ task.id }}</h2>
+        <div class="text-muted">{{ task.name }}</div>
+      </div>
+      <span class="badge {% if task.enabled == 1 %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+        {% if task.enabled == 1 %}Enabled{% else %}Disabled{% endif %}
+      </span>
     </div>
-    <div>
-      <label>Job</label>
-      <select name="job_id">
-        <option value="">-- select job --</option>
-        {% for j in jobs %}
-          <option value="{{ j.id }}" {% if task.job_id == j.id %}selected{% endif %}>{{ j.id }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label>Enabled</label>
-      <select name="enabled">
-        <option value="1" {% if task.enabled == 1 %}selected{% endif %}>1</option>
-        <option value="0" {% if task.enabled == 0 %}selected{% endif %}>0</option>
-      </select>
-    </div>
-    <div>
-      <label>Remark</label>
-      <textarea class="form-control" name="remark" rows="3" placeholder="Notes...">{{ task.remark or "" }}</textarea>
-    </div>
-    <div>
-      <button class="btn" type="submit">Save</button>
-    </div>
-  </form>
+  </div>
 </div>
 
-<h3>Triggers</h3>
-<form method="post" action="/tasks/{{ task.id }}/trigger/add" class="card mb-3">
-  <div class="d-flex gap-2 align-items-center" style="flex-wrap:wrap;">
-  <b>Add Trigger</b>
-  <select name="trigger_type">
-    <option value="interval">interval</option>
-    <option value="cron">cron</option>
-    <option value="deadline">deadline</option>
-  </select>
-  <input class="form-control" name="interval_sec" placeholder="interval_sec" style="width:120px;">
-  <input class="form-control" name="cron_expr" placeholder="*/5 * * * *" style="width:160px;">
-  <input class="form-control" name="deadline_at" placeholder="YYYY-MM-DDTHH:MM:SS" style="width:220px;">
-  <input class="form-control" name="start_before_days" placeholder="start_before_days" style="width:150px;">
-  <input class="form-control" name="interval_hours" placeholder="interval_hours" style="width:140px;">
-  <select name="holiday_policy">
-    <option>NONE</option>
-    <option>CN_WORKDAY_ONLY</option>
-    <option>SKIP_CN_HOLIDAY</option>
-    <option>SKIP_CN_WORKDAY</option>
-  </select>
-  <button type="submit" class="btn">Add</button>
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<div class="card mb-3">
+  <div class="card-header fw-semibold">Task Settings</div>
+  <div class="card-body">
+    <form method="post" action="{{ request.url_for('task_edit', task_id=task.id) }}" class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Name</label>
+        <input class="form-control" value="{{ task.name }}" disabled>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Type</label>
+        <select class="form-select" name="type">
+          <option value="schedule" {% if task.type == 'schedule' %}selected{% endif %}>schedule</option>
+          <option value="monitor" {% if task.type == 'monitor' %}selected{% endif %}>monitor</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Enabled</label>
+        <select class="form-select" name="enabled">
+          <option value="1" {% if task.enabled == 1 %}selected{% endif %}>1</option>
+          <option value="0" {% if task.enabled == 0 %}selected{% endif %}>0</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Job</label>
+        <select class="form-select" name="job_id">
+          <option value="">-- select job --</option>
+          {% for j in jobs %}
+          <option value="{{ j.id }}" {% if task.job_id == j.id %}selected{% endif %}>{{ j.id }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-12">
+        <label class="form-label">Remark</label>
+        <textarea class="form-control" name="remark" rows="3" placeholder="Notes...">{{ task.remark or "" }}</textarea>
+      </div>
+      <div class="col-12">
+        <button class="btn btn-primary" type="submit">Save Task</button>
+      </div>
+    </form>
   </div>
-</form>
-<div class="table-responsive">
-<table class="table table-striped align-middle">
-  <thead>
-    <tr><th>ID</th><th>Type</th><th>Cron</th><th>Interval</th><th>Deadline</th><th>Holiday</th><th>Enabled</th><th>Action</th></tr>
-  </thead>
-  <tbody>
-  {% for tr in triggers %}
-  <tr>
-      <td>
-        {{ tr.id }}
-        <form id="form_tr_{{ tr.id }}" method="post" action="/triggers/{{ tr.id }}/edit"></form>
-        <input type="hidden" name="task_id" value="{{ task.id }}" form="form_tr_{{ tr.id }}">
-      </td>
-      <td>
-        <select name="trigger_type" form="form_tr_{{ tr.id }}">
-          <option value="interval" {% if tr.trigger_type == 'interval' %}selected{% endif %}>interval</option>
-          <option value="cron" {% if tr.trigger_type == 'cron' %}selected{% endif %}>cron</option>
-          <option value="deadline" {% if tr.trigger_type == 'deadline' %}selected{% endif %}>deadline</option>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header fw-semibold">Add Trigger</div>
+  <div class="card-body">
+    <form method="post" action="{{ request.url_for('add_trigger', task_id=task.id) }}" class="row g-2">
+      <div class="col-md-2">
+        <label class="form-label">Type</label>
+        <select class="form-select" name="trigger_type">
+          <option value="interval">interval</option>
+          <option value="cron">cron</option>
+          <option value="deadline">deadline</option>
         </select>
-      </td>
-      <td><input class="form-control" name="cron_expr" value="{{ tr.cron_expr or '' }}" style="width:140px;" form="form_tr_{{ tr.id }}"></td>
-      <td><input class="form-control" type="number" name="interval_sec" value="{{ tr.interval_sec or '' }}" style="width:80px;" form="form_tr_{{ tr.id }}"></td>
-      <td>
-        <input class="form-control" name="deadline_at" value="{{ trig_cfg[tr.id].deadline_at }}" style="width:200px;" form="form_tr_{{ tr.id }}">
-        <input class="form-control" type="number" name="start_before_days" value="{{ trig_cfg[tr.id].start_before_days }}" placeholder="start_before_days" style="width:120px;" form="form_tr_{{ tr.id }}">
-        <input class="form-control" type="number" name="interval_hours" value="{{ trig_cfg[tr.id].interval_hours }}" placeholder="interval_hours" style="width:120px;" form="form_tr_{{ tr.id }}">
-      </td>
-      <td>
-        <select name="holiday_policy" form="form_tr_{{ tr.id }}">
-          <option {% if tr.holiday_policy == 'NONE' %}selected{% endif %}>NONE</option>
-          <option {% if tr.holiday_policy == 'CN_WORKDAY_ONLY' %}selected{% endif %}>CN_WORKDAY_ONLY</option>
-          <option {% if tr.holiday_policy == 'SKIP_CN_HOLIDAY' %}selected{% endif %}>SKIP_CN_HOLIDAY</option>
-          <option {% if tr.holiday_policy == 'SKIP_CN_WORKDAY' %}selected{% endif %}>SKIP_CN_WORKDAY</option>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Interval Sec</label>
+        <input class="form-control" name="interval_sec" placeholder="60">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Cron</label>
+        <input class="form-control" name="cron_expr" placeholder="*/5 * * * *">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Deadline</label>
+        <input class="form-control" name="deadline_at" placeholder="YYYY-MM-DDTHH:MM:SS">
+      </div>
+      <div class="col-md-1">
+        <label class="form-label">Before D</label>
+        <input class="form-control" name="start_before_days" placeholder="1">
+      </div>
+      <div class="col-md-1">
+        <label class="form-label">Hours</label>
+        <input class="form-control" name="interval_hours" placeholder="6">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Holiday Policy</label>
+        <select class="form-select" name="holiday_policy">
+          <option>NONE</option>
+          <option>CN_WORKDAY_ONLY</option>
+          <option>SKIP_CN_HOLIDAY</option>
+          <option>SKIP_CN_WORKDAY</option>
         </select>
-      </td>
-      <td>
-        <select name="enabled" form="form_tr_{{ tr.id }}">
-          <option value="1" {% if tr.enabled == 1 %}selected{% endif %}>1</option>
-          <option value="0" {% if tr.enabled == 0 %}selected{% endif %}>0</option>
-        </select>
-      </td>
-      <td>
-        <button type="submit" class="btn" form="form_tr_{{ tr.id }}">Save</button>
-        <button type="submit" class="btn btn-danger" formaction="/triggers/{{ tr.id }}/delete" onclick="return confirm('Delete trigger?')" form="form_tr_{{ tr.id }}">Delete</button>
-      </td>
-  </tr>
-  {% endfor %}
-  </tbody>
-</table>
+      </div>
+      <div class="col-12">
+        <button type="submit" class="btn btn-outline-primary">Add Trigger</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header fw-semibold">Triggers</div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Type</th>
+          <th>Cron</th>
+          <th>Interval</th>
+          <th>Deadline</th>
+          <th>Holiday</th>
+          <th>Enabled</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for tr in triggers %}
+      <tr>
+        <td>
+          {{ tr.id }}
+          <form id="form_tr_{{ tr.id }}" method="post" action="{{ request.url_for('trigger_edit', trigger_id=tr.id) }}"></form>
+          <input type="hidden" name="task_id" value="{{ task.id }}" form="form_tr_{{ tr.id }}">
+        </td>
+        <td>
+          <select class="form-select form-select-sm" name="trigger_type" form="form_tr_{{ tr.id }}">
+            <option value="interval" {% if tr.trigger_type == 'interval' %}selected{% endif %}>interval</option>
+            <option value="cron" {% if tr.trigger_type == 'cron' %}selected{% endif %}>cron</option>
+            <option value="deadline" {% if tr.trigger_type == 'deadline' %}selected{% endif %}>deadline</option>
+          </select>
+        </td>
+        <td><input class="form-control form-control-sm" name="cron_expr" value="{{ tr.cron_expr or '' }}" form="form_tr_{{ tr.id }}"></td>
+        <td><input class="form-control form-control-sm" type="number" name="interval_sec" value="{{ tr.interval_sec or '' }}" form="form_tr_{{ tr.id }}"></td>
+        <td>
+          <div class="d-grid gap-1" style="min-width: 230px;">
+            <input class="form-control form-control-sm" name="deadline_at" value="{{ trig_cfg[tr.id].deadline_at }}" placeholder="YYYY-MM-DDTHH:MM:SS" form="form_tr_{{ tr.id }}">
+            <div class="row g-1">
+              <div class="col-6">
+                <input class="form-control form-control-sm" type="number" name="start_before_days" value="{{ trig_cfg[tr.id].start_before_days }}" placeholder="before_days" form="form_tr_{{ tr.id }}">
+              </div>
+              <div class="col-6">
+                <input class="form-control form-control-sm" type="number" name="interval_hours" value="{{ trig_cfg[tr.id].interval_hours }}" placeholder="hours" form="form_tr_{{ tr.id }}">
+              </div>
+            </div>
+          </div>
+        </td>
+        <td>
+          <select class="form-select form-select-sm" name="holiday_policy" form="form_tr_{{ tr.id }}">
+            <option {% if tr.holiday_policy == 'NONE' %}selected{% endif %}>NONE</option>
+            <option {% if tr.holiday_policy == 'CN_WORKDAY_ONLY' %}selected{% endif %}>CN_WORKDAY_ONLY</option>
+            <option {% if tr.holiday_policy == 'SKIP_CN_HOLIDAY' %}selected{% endif %}>SKIP_CN_HOLIDAY</option>
+            <option {% if tr.holiday_policy == 'SKIP_CN_WORKDAY' %}selected{% endif %}>SKIP_CN_WORKDAY</option>
+          </select>
+        </td>
+        <td>
+          <select class="form-select form-select-sm" name="enabled" form="form_tr_{{ tr.id }}">
+            <option value="1" {% if tr.enabled == 1 %}selected{% endif %}>1</option>
+            <option value="0" {% if tr.enabled == 0 %}selected{% endif %}>0</option>
+          </select>
+        </td>
+        <td>
+          <div class="d-flex gap-1">
+            <button type="submit" class="btn btn-sm btn-primary" form="form_tr_{{ tr.id }}">Save</button>
+            <button type="submit" class="btn btn-sm btn-outline-danger" formaction="{{ request.url_for('trigger_delete', trigger_id=tr.id) }}" onclick="return confirm('Delete trigger?')" form="form_tr_{{ tr.id }}">Delete</button>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endblock %}

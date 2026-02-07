@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import os
+import platform
 import threading
 import time
 import logging
@@ -23,6 +24,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from concurrent.futures import ThreadPoolExecutor
+import psutil
 
 from app.config import settings
 from app.db import Base, engine, get_db, SessionLocal
@@ -180,6 +182,171 @@ def parse_local_naive(dt_str: str) -> datetime | None:
         return dt
     return dt.astimezone(ZoneInfo(settings.TIMEZONE)).replace(tzinfo=None)
 
+def format_local_display(dt: datetime | None) -> str:
+    if not dt:
+        return ""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+    dt_local = dt.astimezone(ZoneInfo(settings.TIMEZONE)).replace(tzinfo=None)
+    return dt_local.isoformat(sep=" ", timespec="microseconds")
+
+
+def format_duration_display(started: datetime | None, finished: datetime | None) -> str:
+    if not started:
+        return ""
+    end = finished or now_utc()
+    total = max(int((end - started).total_seconds()), 0)
+    hours = total // 3600
+    minutes = (total % 3600) // 60
+    seconds = total % 60
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def format_status_detail(run: Run, max_len: int = 120) -> str:
+    if run.status == "SUCCESS":
+        return ""
+    if run.error_message:
+        text = " ".join(run.error_message.split())
+        if len(text) > max_len:
+            text = text[:max_len].rstrip() + "..."
+        return text
+    if run.exit_code is not None:
+        return f"exit_code={run.exit_code}"
+    return ""
+
+
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for", "").strip()
+    if xff:
+        first = xff.split(",", 1)[0].strip()
+        if first:
+            return first
+    if request.client and request.client.host:
+        return request.client.host
+    return "N/A"
+
+
+def _format_bytes_gb(n: int | float) -> str:
+    return f"{(float(n) / (1024 ** 3)):.3f} G"
+
+
+def _format_bytes_auto(n: int | float) -> str:
+    value = float(n)
+    units = ["B", "KB", "MB", "GB", "TB", "PB"]
+    idx = 0
+    while value >= 1024 and idx < len(units) - 1:
+        value /= 1024
+        idx += 1
+    return f"{value:.2f} {units[idx]}"
+
+
+def _format_percent(v: float) -> str:
+    return f"{float(v):.2f}%"
+
+
+def _format_uptime(seconds: float) -> str:
+    total = max(int(seconds), 0)
+    days = total // 86400
+    hours = (total % 86400) // 3600
+    minutes = (total % 3600) // 60
+    return f"{days}d{hours}h{minutes}m"
+
+def _safe_loadavg() -> tuple[str, str, str]:
+    try:
+        one, five, fifteen = os.getloadavg()
+        return f"{one:.2f}", f"{five:.2f}", f"{fifteen:.2f}"
+    except Exception:
+        return "N/A", "N/A", "N/A"
+
+
+def _read_cpu_model() -> str:
+    try:
+        with open("/proc/cpuinfo", "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if line.lower().startswith("model name"):
+                    _, value = line.split(":", 1)
+                    model = value.strip()
+                    if model:
+                        return model
+    except Exception:
+        pass
+
+    proc = platform.processor().strip()
+    if proc:
+        return proc
+    return "unknown"
+
+
+def _collect_disk_usage(path: str) -> dict[str, object]:
+    item: dict[str, object] = {
+        "path": path,
+        "available": False,
+        "total": "N/A",
+        "used": "N/A",
+        "free": "N/A",
+        "percent": "N/A",
+        "percent_float": 0.0,
+    }
+    try:
+        usage = psutil.disk_usage(path)
+    except Exception:
+        return item
+
+    item["available"] = True
+    item["total"] = _format_bytes_gb(usage.total)
+    item["used"] = _format_bytes_gb(usage.used)
+    item["free"] = _format_bytes_gb(usage.free)
+    item["percent"] = _format_percent(usage.percent)
+    item["percent_float"] = float(usage.percent)
+    return item
+
+
+def _collect_nic_traffic(nic: str, counters: dict[str, object]) -> dict[str, str]:
+    item = {"name": nic, "rx": "N/A", "tx": "N/A"}
+    stat = counters.get(nic)
+    if not stat:
+        return item
+    try:
+        item["rx"] = _format_bytes_auto(stat.bytes_recv)
+        item["tx"] = _format_bytes_auto(stat.bytes_sent)
+    except Exception:
+        return item
+    return item
+
+
+def _collect_home_system_info(request: Request) -> dict[str, object]:
+    info: dict[str, object] = {
+        "client_ip": _client_ip(request),
+        "server_time": now_local_naive().strftime("%Y-%m-%d %H:%M:%S"),
+        "uptime": "N/A",
+        "cpu_model": _read_cpu_model(),
+        "disks": [],
+        "loadavg": "N/A N/A N/A",
+        "nics": [],
+    }
+
+    try:
+        uptime_sec = time.time() - psutil.boot_time()
+        info["uptime"] = _format_uptime(uptime_sec)
+    except Exception:
+        pass
+
+    disk_paths = ["/", "/mnt/sda", "/mnt/sdc", "/mnt/sdd"]
+    info["disks"] = [_collect_disk_usage(path) for path in disk_paths]
+
+    one, five, fifteen = _safe_loadavg()
+    info["loadavg"] = f"{one} {five} {fifteen}"
+
+    nic_counters: dict[str, object] = {}
+    try:
+        nic_counters = psutil.net_io_counters(pernic=True)
+    except Exception:
+        nic_counters = {}
+    info["nics"] = [
+        _collect_nic_traffic("br0", nic_counters),
+        _collect_nic_traffic("lo", nic_counters),
+    ]
+    return info
 
 def parse_out_line(stdout_text: str) -> list[str]:
     lines = [ln.rstrip("\n") for ln in stdout_text.splitlines()]
@@ -668,7 +835,8 @@ def index(request: Request):
     redir = _guard(request)
     if redir:
         return redir
-    return templates.TemplateResponse("index.html", {"request": request})
+    sysinfo = _collect_home_system_info(request)
+    return templates.TemplateResponse("index.html", {"request": request, "sysinfo": sysinfo})
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -997,6 +1165,11 @@ def runs(request: Request, db: Session = Depends(get_db)):
     if redir:
         return redir
     items = db.execute(select(Run).order_by(Run.id.desc()).limit(200)).scalars().all()
+    for r in items:
+        r.started_at_local = format_local_display(r.started_at)
+        r.finished_at_local = format_local_display(r.finished_at)
+        r.duration_display = format_duration_display(r.started_at, r.finished_at)
+        r.status_detail = format_status_detail(r)
     tasks = {t.id: t for t in db.execute(select(Task)).scalars().all()}
     return templates.TemplateResponse("runs.html", {"request": request, "runs": items, "tasks": tasks})
 

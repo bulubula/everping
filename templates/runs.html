@@ -1,29 +1,60 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="card mb-3">
-  <div class="d-flex justify-content-between align-items-center">
-    <h2 style="margin:0;">Runs (latest 200)</h2>
-    <form action="{{ request.url_for('runs_clear') }}" method="post">
-      <button type="submit" class="btn btn-danger" onclick="return confirm('Clear all runs?')">Clear</button>
-    </form>
+  <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3 py-2">
+    <div>
+      <h2 class="mb-0">Runs</h2>
+      <div class="text-muted small">Latest 200 execution records.</div>
+    </div>
+    <div>
+      <form action="{{ request.url_for('runs_clear') }}" method="post">
+        <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Clear all runs?')">Clear</button>
+      </form>
+    </div>
   </div>
 </div>
+
 <div class="table-responsive">
-<table class="table table-striped align-middle">
+<table class="table table-hover align-middle">
   <thead>
-    <tr><th>ID</th><th>Task</th><th>Status</th><th>Code</th><th>Scheduled</th><th>Started</th><th>Finished</th><th>Stdout</th></tr>
+    <tr>
+      <th style="width: 64px;">ID</th>
+      <th style="width: 26%;">Task</th>
+      <th style="width: 28%;">Status</th>
+      <th style="width: 96px;">Duration</th>
+      <th style="width: 18%;">Started</th>
+      <th style="width: 18%;">Finished</th>
+    </tr>
   </thead>
   <tbody>
   {% for r in runs %}
   <tr>
     <td>{{ r.id }}</td>
-    <td>{{ tasks.get(r.task_id).name if tasks.get(r.task_id) else r.task_id }}</td>
-    <td>{{ r.status }}</td>
-    <td>{{ r.exit_code or "" }}</td>
-    <td>{{ r.scheduled_at }}</td>
-    <td>{{ r.started_at or "" }}</td>
-    <td>{{ r.finished_at or "" }}</td>
-    <td><span class="code">{{ r.stdout_path or "" }}</span></td>
+    <td>
+      <div class="fw-semibold">{{ tasks.get(r.task_id).name if tasks.get(r.task_id) else r.task_id }}</div>
+      <div class="text-muted small">task_id={{ r.task_id }}</div>
+    </td>
+    <td>
+      {% if r.status == "SUCCESS" %}
+      <span class="badge text-bg-success">SUCCESS</span>
+      {% elif r.status == "FAILED" %}
+      <span class="badge text-bg-danger">FAILED</span>
+      {% elif r.status == "TIMEOUT" %}
+      <span class="badge text-bg-warning">TIMEOUT</span>
+      {% elif r.status == "RUNNING" %}
+      <span class="badge text-bg-primary">RUNNING</span>
+      {% elif r.status == "PENDING" %}
+      <span class="badge text-bg-secondary">PENDING</span>
+      {% else %}
+      <span class="badge text-bg-light">{{ r.status }}</span>
+      {% endif %}
+      {% if r.status_detail %}
+      <div class="small text-muted mt-1">{{ r.status_detail }}</div>
+      {% endif %}
+    </td>
+    <td><span class="small">{{ r.duration_display }}</span></td>
+    <td class="small">{{ r.started_at_local }}</td>
+    <td class="small">{{ r.finished_at_local }}</td>
   </tr>
   {% endfor %}
   </tbody>

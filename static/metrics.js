@@ -40,23 +40,68 @@
     return rows;
   };
 
-  const downsample = (points, maxPoints) => {
+  const downsampleKeepFeatures = (points, maxPoints) => {
     if (points.length <= maxPoints) return points;
-    const firstTs = parseTs(points[0].ts);
-    const lastTs = parseTs(points[points.length - 1].ts);
-    if (!firstTs || !lastTs) return points.slice(-maxPoints);
-    const span = lastTs.getTime() - firstTs.getTime();
-    if (span <= 0) return points.slice(-maxPoints);
-    const bucketMs = span / maxPoints;
-    const buckets = new Array(maxPoints);
-    for (const p of points) {
-      const t = parseTs(p.ts);
-      if (!t) continue;
-      const idx = Math.min(maxPoints - 1, Math.floor((t.getTime() - firstTs.getTime()) / bucketMs));
-      // keep the last point in each bucket
-      buckets[idx] = p;
+
+    const bucketCount = Math.max(1, Math.floor(maxPoints / 4));
+    const span = points.length / bucketCount;
+    const picked = new Map();
+
+    const add = (p) => {
+      if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+        picked.set(p.idx, p);
+      }
+    };
+
+    for (let i = 0; i < bucketCount; i += 1) {
+      const start = Math.floor(i * span);
+      const end = Math.min(points.length, Math.floor((i + 1) * span));
+      if (start >= end) continue;
+      const bucket = points.slice(start, end);
+
+      let minP = bucket[0];
+      let maxP = bucket[0];
+      for (const p of bucket) {
+        if (p.y < minP.y) minP = p;
+        if (p.y > maxP.y) maxP = p;
+      }
+
+      add(bucket[0]); // local start
+      add(minP);      // local min
+      add(maxP);      // local max
+      add(bucket[bucket.length - 1]); // local end
     }
-    return buckets.filter(Boolean);
+
+    // Keep global anchors as a hard guarantee.
+    add(points[0]);
+    add(points[points.length - 1]);
+    add(points.reduce((a, b) => (a.y <= b.y ? a : b)));
+    add(points.reduce((a, b) => (a.y >= b.y ? a : b)));
+
+    let out = Array.from(picked.values()).sort((a, b) => a.idx - b.idx);
+    if (out.length <= maxPoints) return out;
+
+    // If still too many points, thin evenly but always preserve anchors.
+    const anchors = new Map();
+    anchors.set(out[0].idx, out[0]);
+    anchors.set(out[out.length - 1].idx, out[out.length - 1]);
+    const gMin = out.reduce((a, b) => (a.y <= b.y ? a : b));
+    const gMax = out.reduce((a, b) => (a.y >= b.y ? a : b));
+    anchors.set(gMin.idx, gMin);
+    anchors.set(gMax.idx, gMax);
+
+    const remainSlots = Math.max(0, maxPoints - anchors.size);
+    const rest = out.filter(p => !anchors.has(p.idx));
+    const step = remainSlots > 0 ? rest.length / remainSlots : rest.length;
+    const thinned = [];
+    for (let i = 0; i < remainSlots && rest.length > 0; i += 1) {
+      const idx = Math.min(rest.length - 1, Math.floor(i * step));
+      thinned.push(rest[idx]);
+    }
+
+    out = Array.from(new Map([...anchors, ...thinned.map(p => [p.idx, p])]).values())
+      .sort((a, b) => a.idx - b.idx);
+    return out.slice(0, maxPoints);
   };
 
   const buildSeries = (filtered) => {
@@ -67,12 +112,14 @@
         series.set(key, []);
       }
       const y = Number.parseFloat(r.value);
-      if (Number.isFinite(y)) {
-        series.get(key).push({ x: idx, y, ts: r.ts });
+      const t = parseTs(r.ts);
+      if (Number.isFinite(y) && t) {
+        series.get(key).push({ idx, x: t.getTime(), y, ts: r.ts });
       }
     });
     for (const [k, points] of series.entries()) {
-      series.set(k, downsample(points, 500));
+      points.sort((a, b) => a.x - b.x);
+      series.set(k, downsampleKeepFeatures(points, 500));
     }
     return series;
   };
@@ -107,9 +154,10 @@
       const minY = Math.min(...values);
       const maxY = Math.max(...values);
       const rangeY = maxY - minY || 1;
-      const maxX = points.length - 1 || 1;
-
-      const xToPx = x => padding + (x / maxX) * (w - padding * 2);
+      const minX = points[0].x;
+      const maxX = points[points.length - 1].x;
+      const rangeX = maxX - minX || 1;
+      const xToPx = x => padding + ((x - minX) / rangeX) * (w - padding * 2);
       const yToPx = y => h - padding - ((y - minY) / rangeY) * (h - padding * 2);
 
       ctx.clearRect(0, 0, w, h);
@@ -130,8 +178,11 @@
       ctx.fillText(minY.toFixed(2), 6, h - padding);
       // x-axis ticks: left/right timestamps
       const leftTs = points[0]?.ts || "";
+      const midTs = points[Math.floor(points.length / 2)]?.ts || "";
       const rightTs = points[points.length - 1]?.ts || "";
       ctx.fillText(leftTs, padding, h - 8);
+      const midTextWidth = ctx.measureText(midTs).width;
+      ctx.fillText(midTs, (w - midTextWidth) / 2, h - 8);
       const rightTextWidth = ctx.measureText(rightTs).width;
       ctx.fillText(rightTs, w - padding - rightTextWidth, h - 8);
 
@@ -139,12 +190,27 @@
       ctx.lineWidth = 2;
       ctx.beginPath();
       points.forEach((p, i) => {
-        const x = xToPx(i);
+        const x = xToPx(p.x);
         const y = yToPx(p.y);
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       });
       ctx.stroke();
+
+      const minPoint = points.reduce((a, b) => (a.y <= b.y ? a : b));
+      const maxPoint = points.reduce((a, b) => (a.y >= b.y ? a : b));
+      const drawMarker = (p, color, label) => {
+        const x = xToPx(p.x);
+        const y = yToPx(p.y);
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.font = "11px sans-serif";
+        ctx.fillText(label, x + 6, y - 6);
+      };
+      drawMarker(maxPoint, "#dc2626", `max ${maxPoint.y.toFixed(2)}`);
+      drawMarker(minPoint, "#0891b2", `min ${minPoint.y.toFixed(2)}`);
     });
   };
 
